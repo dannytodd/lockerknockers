@@ -1,0 +1,4 @@
+- when sensor can't read anything it slows reading down a near halt
+- outliers are randomly plotted which will fuck up knock analysis
+	- maybe generalise knock patterns?
+- need to set limits for reading
