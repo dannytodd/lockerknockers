@@ -7,59 +7,75 @@ const int redPin = 12; // failed knock attempt
 const int greenPin = 13; // successful knock attempt
 
 bool Successful_Knock = false;
+bool Door_Open = false;
+int Door_Data[100] = {};
 
 unsigned long Time_Echo_us = 0;
 //Len_mm_X100 = length*100
 unsigned long Len_mm_X100 = 0;
 unsigned long Len_Integer = 0; //
 unsigned int Len_Fraction = 0;
+
 void setup()
 {
- Serial.begin(9600);
- pinMode(EchoPin, INPUT);
- pinMode(TrigPin, OUTPUT);
- pinMode(switchPin, INPUT);
- digitalWrite(switchPin, HIGH);
- pinMode(buzzer, OUTPUT); // Set buzzer - pin 9 as an output
+  Serial.begin(9600);
+  pinMode(EchoPin, INPUT);
+  pinMode(TrigPin, OUTPUT);
+  pinMode(switchPin, INPUT);
+  //digitalWrite(switchPin, HIGH); // fucks up magnet reading as only HIGH even though it is in tutorial
+  pinMode(buzzer, OUTPUT); // Set buzzer - pin 9 as an output
 }
+
 void loop()
-{  
- digitalWrite(TrigPin, HIGH);
- delayMicroseconds(10);
- digitalWrite(TrigPin, LOW);
+{
+  digitalWrite(TrigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TrigPin, LOW);
 
- Time_Echo_us = pulseIn(EchoPin, HIGH);
- if((Time_Echo_us < 60000) && (Time_Echo_us > 1))
- {
- Len_mm_X100 = (Time_Echo_us*34)/2;
- Len_Integer = Len_mm_X100/100;
- Len_Fraction = Len_mm_X100%100;
- if(Len_Integer > 400)
- {
- Len_Integer = 400;
- }
- if(digitalRead(switchPin) == HIGH){
-   if(Successful_Knock){
-    // SUCCESS
-    digitalWrite(greenPin, HIGH);
-   }
-   else {
-    // FAIL
-    digitalWrite(redPin, HIGH);
-    tone(buzzer, 100); // Send 1KHz sound signal...
-    delay(200);        // ...for 1 sec
-   }
- }
- noTone(buzzer);     // Stop sound...
- //Serial.print("Present Length is: ");
- Serial.println(Len_Integer);
- //Serial.print(".");
- //if(Len_Fraction < 10)
- //Serial.print("0");
- //Serial.print(Len_Fraction, DEC);
- //Serial.println("mm");
+  Time_Echo_us = pulseIn(EchoPin, HIGH);
+  if ((Time_Echo_us < 60000) && (Time_Echo_us > 1))
+  {
+    setDoor();
+    
+    Len_mm_X100 = (Time_Echo_us * 34) / 2;
+    Len_Integer = Len_mm_X100 / 100;
+    Len_Fraction = Len_mm_X100 % 100;
+    if (Len_Integer > 200)
+    {
+      Len_Integer = 200;
+    }
+
+    if (digitalRead(switchPin) == HIGH) {
+      if (Successful_Knock or Len_Integer < 100) {
+        // SUCCESS
+        digitalWrite(greenPin, HIGH);
+      }
+      else {
+        // FAIL
+        digitalWrite(redPin, HIGH);
+        tone(buzzer, 100); // Send 1KHz sound signal...
+        delay(200);        // ...for 1 sec
+      }
+    }
+    else {
+      digitalWrite(switchPin, HIGH);
+    }
+    noTone(buzzer);     // Stop sound...
+    //Serial.print("Present Length is: ");
+    //Serial.println(Len_Integer);
+    //Serial.print(".");
+    //if(Len_Fraction < 10)
+    //Serial.print("0");
+    //Serial.print(Len_Fraction, DEC);
+    //Serial.println("mm");
 
 
- }
- delay(10);
+  }
+  delay(10);
 }
+
+void setDoor()
+{
+  
+}
+
