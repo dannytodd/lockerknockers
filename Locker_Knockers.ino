@@ -29,6 +29,7 @@ unsigned long Len_mm_X100 = 0;
 unsigned long Len_Integer = 0; //
 unsigned int Len_Fraction = 0;
 
+//// MAIN ////
 void setup()
 {
   Serial.begin(9600);
@@ -44,6 +45,65 @@ void setup()
   digitalWrite(SwitchPin, HIGH);
 }
 
+void loop()
+{
+  digitalWrite(TrigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TrigPin, LOW);
+  Time_Echo_us = pulseIn(EchoPin, HIGH);
+  if ((Time_Echo_us < 60000) && (Time_Echo_us > 1))
+  {
+    float distance = readDistanceData();
+
+    knockStep(Temp_Knock, distance);
+
+    // Door open
+    if (digitalRead(SwitchPin) == HIGH) {
+      if (Successful_Knock or distance < 100) {
+        setState("SUCCESS");
+      }
+      else {
+        setState("FAIL");
+      }
+    }
+    // Store button pressed
+    else if (digitalRead(StorePin) == HIGH) {
+      float knockPasswordAttempt[10] = {};
+      setState("READING");
+      readWholeKnock(knockPasswordAttempt);
+      Serial.println(knockPasswordAttempt);
+
+      if (knockAttempt(knockPasswordAttempt)) {
+        Serial.println("NEW KNOCK");
+        float newKnock[10] = {};
+        readWholeKnock(newKnock);
+        storeKnock(newKnock);
+      }
+      else {
+        digitalWrite(RedPin, HIGH);
+      }
+    }
+    else {
+      resetState();
+    }
+
+
+    //Serial.print("Present Length is: ");
+    //Serial.println(distance);
+    //Serial.print(".");
+    //if(Len_Fraction < 10)
+    //Serial.print("0");
+    //Serial.print(Len_Fraction, DEC);
+    //Serial.println("mm");
+
+
+  }
+  Serial.print("");
+  delay(30);
+}
+//// END ////
+
+//// TEMPORARY KNOCK STORE
 void resetTempKnock() {
   Serial.println("RESET TEMP KNOCK");
   // sizeof(Temp_Knock) TODO
@@ -54,6 +114,12 @@ void resetTempKnock() {
   Temp_Knock_Count = 0;
 }
 
+void storeKnock(float processedKnock[10])
+{
+  memcpy( Stored_Knock, processKnock, 5 * sizeof(int) );
+}
+
+//// KNOCK READING
 float readDistanceData() {
   //Serial.println("READ DISTANCE DATA");
   Len_mm_X100 = (Time_Echo_us * 34) / 2;
@@ -64,26 +130,6 @@ float readDistanceData() {
     Len_Integer = 200;
   }
   return Len_Integer;
-}
-
-void abstractifyKnocks(float abstractKnock[10], float knockTroughTimes[10])
-{
-  // return list of abstract multipliers for each knock e.g. [1, 1.243, 0.9435, 1.5435]
-  //                                                          ^ 1 because the first knock is compared to by the rest
-}
-
-void getKnockTroughs(float knock[100], float knockTroughTimes[10])
-{
-  // returns a list of lower bounds of knock distances by their timestamp
-}
-
-void processKnock(float rawKnock[100])
-{
-  // list of times in seconds
-  float knockTroughTimes[10] = {};
-  getKnockTroughs(rawKnock, knockTroughTimes);
-  float abstractKnock[10] = {};
-  abstractifyKnocks(abstractKnock, knockTroughTimes);
 }
 
 void knockStep(float knockArray[100], int distance)
@@ -122,11 +168,48 @@ void readWholeKnock(float knock[100])
   }
 }
 
-void storeKnock(float processedKnock[10])
+//// KNOCK PROCESSING
+void processKnock(float rawKnock[100])
 {
-  memcpy( Stored_Knock, processKnock, 5 * sizeof(int) );
+  // list of times in seconds
+  float knockTroughTimes[10] = {};
+  getKnockTroughs(rawKnock, knockTroughTimes);
+  float abstractKnock[10] = {};
+  abstractifyKnocks(abstractKnock, knockTroughTimes);
 }
 
+void getKnockTroughs(float knock[100], float knockTroughTimes[10])
+{
+  // returns a list of lower bounds of knock distances by their timestamp
+}
+
+void abstractifyKnocks(float abstractKnock[10], float knockTroughTimes[10])
+{
+  // return list of abstract multipliers for each knock e.g. [1, 1.243, 0.9435, 1.5435]
+  //                                                          ^ 1 because the first knock is compared to by the rest
+}
+
+//// KNOCK PASSWORD ATTEMPT
+bool knockAttempt(float knock[10])
+{
+  if (compareKnockToStored(knock)) {
+    Serial.println("KNOCK ATTEMPT SUCCESS");
+    return true;
+  }
+  else {
+    Serial.println("KNOCK ATTEMPT FAIL");
+    return false;
+  }
+}
+
+bool compareKnockToStored(float knock[10])
+{
+  //if(checkStoredKnockLimit()) // limit of literal times
+
+  return false;
+}
+
+//// STATE MACHINE
 void resetState() {
   digitalWrite(GreenPin, LOW);
   digitalWrite(RedPin, LOW);
@@ -153,86 +236,10 @@ void setState(String state) {
   }
 }
 
-void loop()
-{
-  digitalWrite(TrigPin, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(TrigPin, LOW);
-  Time_Echo_us = pulseIn(EchoPin, HIGH);
-  if ((Time_Echo_us < 60000) && (Time_Echo_us > 1))
-  {
-    float distance = readDistanceData();
-
-    knockStep(Temp_Knock, distance);
-
-    // Door open
-    if (digitalRead(SwitchPin) == HIGH) {
-      if (Successful_Knock or distance < 100) {
-        setState("SUCCESS");
-      }
-      else {
-        setState("FAIL");
-      }
-    }
-    // Store button pressed
-    else if (digitalRead(StorePin) == HIGH) {
-      float knockPasswordAttempt[10] = {};
-      setState("READING");
-      readWholeKnock(knockPasswordAttempt);
-
-      if (knockAttempt(knockPasswordAttempt)) {
-        Serial.println("NEW KNOCK");
-        float newKnock[10] = {};
-        readWholeKnock(newKnock);
-        storeKnock(newKnock);
-      }
-      else {
-        digitalWrite(RedPin, HIGH);
-      }
-    }
-    else {
-      resetState();
-    }
-
-
-    //Serial.print("Present Length is: ");
-    //Serial.println(distance);
-    //Serial.print(".");
-    //if(Len_Fraction < 10)
-    //Serial.print("0");
-    //Serial.print(Len_Fraction, DEC);
-    //Serial.println("mm");
-
-
-  }
-  Serial.print("");
-  delay(30);
-}
 
 
 
 
-
-
-
-bool knockAttempt(float knock[10])
-{
-  if (compareKnockToStored(knock)) {
-    Serial.println("KNOCK ATTEMPT SUCCESS");
-    return true;
-  }
-  else {
-    Serial.println("KNOCK ATTEMPT FAIL");
-    return false;
-  }
-}
-
-bool compareKnockToStored(float knock[10])
-{
-  //if(checkStoredKnockLimit()) // limit of literal times
-
-  return false;
-}
 
 
 
