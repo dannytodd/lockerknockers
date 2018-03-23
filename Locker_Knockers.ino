@@ -1,3 +1,6 @@
+#include <Time.h>
+#include <TimeLib.h>
+
 // TODO
 // - record time with distance sensor
 // - add monitor
@@ -18,8 +21,11 @@ bool Door_Open = false;
 
 float Stored_Knock[10] = {};
 
-float Temp_Knock[100] = {};
+float Temp_Knock_Distances[100] = {};
+float Temp_Knock_Times[100] = {};
 int Temp_Knock_Count = 0;
+int Temp_Time_Start = 0;
+
 bool Attempt_Finished = false;
 bool Hand_Moved_Away = false;
 
@@ -55,7 +61,7 @@ void loop()
   {
     float distance = readDistanceData();
 
-    knockStep(Temp_Knock, distance);
+    knockStep(distance);
 
     // Door open
     if (digitalRead(SwitchPin) == HIGH) {
@@ -71,8 +77,8 @@ void loop()
       float knockPasswordAttempt[10] = {};
       setState("READING");
       readWholeKnock(knockPasswordAttempt);
-      Serial.println(knockPasswordAttempt);
-
+      Serial.print("ATTEMPT: ");
+      print100Array(knockPasswordAttempt);
       if (knockAttempt(knockPasswordAttempt)) {
         Serial.println("NEW KNOCK");
         float newKnock[10] = {};
@@ -108,10 +114,12 @@ void resetTempKnock() {
   Serial.println("RESET TEMP KNOCK");
   // sizeof(Temp_Knock) TODO
   for ( int i = 0; i < 10;  ++i ) {
-    Temp_Knock[i] = (char)0;
+    Temp_Knock_Distances[i] = (char)0;
+    Temp_Knock_Times[i] = (char)0;
   }
 
   Temp_Knock_Count = 0;
+  Temp_Time_Start = 0;
 }
 
 void storeKnock(float processedKnock[10])
@@ -132,19 +140,34 @@ float readDistanceData() {
   return Len_Integer;
 }
 
-void knockStep(float knockArray[100], int distance)
+void knockStep(int distance)
 {
   if (distance < 150) {
-    if (Attempt_Finished and Hand_Moved_Away) {   // HERE HERE HERE HERE HERE HERE HERE HERE HERE HERE HERE HERE
+    if (distance < 100) {
+      tone(Buzzer, 50);
+      delay(200);        
+    }
+    if (Attempt_Finished and Hand_Moved_Away) {
       resetTempKnock();
     }
     else if (Hand_Moved_Away) {
       Attempt_Finished = true;
     }
     else if (Attempt_Finished == false) {
-      knockArray[Temp_Knock_Count] = distance;
-      knockArray += 1;
-      if (Temp_Knock_Count >= 100) {
+      if (Temp_Knock_Count == 0) {
+        Temp_Time_Start = millis();
+      }
+      if (Temp_Knock_Count < 100) {
+        Temp_Knock_Distances[Temp_Knock_Count] = distance;
+        Temp_Knock_Times[Temp_Knock_Count] = millis() - Temp_Time_Start;
+        Temp_Knock_Count += 1;
+      }
+      else if (Temp_Knock_Count >= 100) {
+        Serial.print("DISTANCES: ");
+        print100Array(Temp_Knock_Distances);
+        Serial.print("TIMES: ");
+        print100Array(Temp_Knock_Times);
+
         Attempt_Finished = true;
       }
       // http://andybrown.me.uk/2011/01/15/the-standard-template-library-stl-for-avr-with-c-streams/
@@ -162,7 +185,7 @@ void readWholeKnock(float knock[100])
   {
     for (int i = 0; i < 100; i++) {
       float distance = readDistanceData();
-      knockStep(knock, distance);
+      knockStep(distance);
     }
     processKnock(knock);
   }
@@ -178,12 +201,15 @@ void processKnock(float rawKnock[100])
   abstractifyKnocks(abstractKnock, knockTroughTimes);
 }
 
+// returns a list of lower bounds of knock distances by their timestamp
 void getKnockTroughs(float knock[100], float knockTroughTimes[10])
 {
-  // returns a list of lower bounds of knock distances by their timestamp
+  for (int i = 0; i < 100; i++) {
+
+  }
 }
 
-void abstractifyKnocks(float abstractKnock[10], float knockTroughTimes[10])
+void abstractifyKnocks(float knock[10], float knockTroughTimes[10])
 {
   // return list of abstract multipliers for each knock e.g. [1, 1.243, 0.9435, 1.5435]
   //                                                          ^ 1 because the first knock is compared to by the rest
@@ -236,7 +262,15 @@ void setState(String state) {
   }
 }
 
-
+//// PRINT STUFF
+void print100Array(float myArray[100]) {
+  for (int i = 0; i < 100; i++)
+  {
+    Serial.print(myArray[i]);
+    Serial.print(", ");
+  }
+  Serial.println("");
+}
 
 
 
