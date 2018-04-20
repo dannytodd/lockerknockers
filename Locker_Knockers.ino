@@ -2,14 +2,12 @@
 #include <TimeLib.h>
 
 // TODO
-// - record time with distance sensor
-// - add monitor
+// - storing knock to data store, could be done by chaning state to STORING and using main loop for ease
+// - knock store comparing
+// - data store
 // 
-// 
-MOVING AVERAGE  https://www.dallasfed.org/research/basics/moving.aspx
-for every data point, idx:
-  avg = array[i] + (abs(array[i] - array[i-2])/2)
-  array[idx+1] = avg
+//MOVING AVERAGE  https://www.dallasfed.org/research/basics/moving.aspx
+
 
 // BUGS
 // - DISTANCES: [133, 125, 140, 126, 132, 94, 84, 83, 102, 84, 85, 83, 78, 114, 97, 100, 142, 141, 100, 136, 122, 106, 82, 77, 82, 86, 81, 77, 83, 112, 137, 127, 112, 116, 106, 93, 95, 147, 131, 122, 113, 111, 141, 106, 130, 98, 92, 105, 110, 134, 149, 133, 130, 135, 131, 120, 124, 147, 144, 121, 129, 140, 143, 133, 139, 118, 98, 99, 107, 114, 109, 99, 97, 83, 80, 81, 86, 91, 93, 100, 125, 145, 126, 117, 131, 136, 114, 111, 113, 125, 130, 122, 105, 102, 116, 120, 116, 121, 129, 112]
@@ -47,6 +45,13 @@ unsigned long Len_mm_X100 = 0;
 unsigned long Len_Integer = 0; //
 unsigned int Len_Fraction = 0;
 
+// TESTING
+void loop(){
+  int dists[100] = {133, 125, 140, 126, 132, 94, 84, 83, 102, 84, 85, 83, 78, 114, 97, 100, 142, 141, 100, 136, 122, 106, 82, 77, 82, 86, 81, 77, 83, 112, 137, 127, 112, 116, 106, 93, 95, 147, 131, 122, 113, 111, 141, 106, 130, 98, 92, 105, 110, 134, 149, 133, 130, 135, 131, 120, 124, 147, 144, 121, 129, 140, 143, 133, 139, 118, 98, 99, 107, 114, 109, 99, 97, 83, 80, 81, 86, 91, 93, 100, 125, 145, 126, 117, 131, 136, 114, 111, 113, 125, 130, 122, 105, 102, 116, 120, 116, 121, 129, 112};
+  int times[100] = {0, 12, 24, 357, 369, 381, 393, 404, 416, 428, 440, 453, 472, 492, 511, 530, 551, 570, 891, 903, 915, 927, 939, 951, 962, 977, 996, 1014, 1033, 1511, 1957, 1969, 1980, 1992, 2005, 2016, 2028, 2234, 2557, 2569, 2581, 2593, 2606, 2617, 2720, 2732, 2744, 2756, 3247, 3440, 3796, 3808, 3820, 3832, 3936, 3947, 3959, 4413, 4438, 4643, 4655, 4667, 4989, 5001, 5013, 5116, 5128, 5139, 5151, 5575, 5588, 5599, 5611, 5623, 5635, 5647, 5659, 5678, 5697, 5717, 5736, 6165, 6189, 6201, 6213, 6225, 6855, 6958, 6970, 7509, 7521, 7532, 7636, 7648, 7659, 7671, 7696, 7707, 7720, 8179};
+  processKnock(dists, times);
+}
+
 //// MAIN ////
 void setup()
 {
@@ -63,7 +68,7 @@ void setup()
   digitalWrite(SwitchPin, HIGH);
 }
 
-void loop()
+void lodop()
 {
   digitalWrite(TrigPin, HIGH);
   delayMicroseconds(10);
@@ -229,18 +234,43 @@ void readWholeKnock(int knock[100])
 //// KNOCK PROCESSING
 void processKnock(int rawKnockDistances[100], int rawKnockTimes[100])
 {
+  applyMovingAverage(rawKnockDistances);
+  
   // list of times in seconds
   int knockTroughTimes[10] = {546, 1432, 3097, 4004, 4569, 5532, 6032, 7184, 8634, 10023};  // MARKS CODE !!!!!!!!!!!!!!!!
   //getKnockTroughs(rawKnockDistances, rawKnockTimes, knockTroughTimes);
+  
   float abstractKnock[10] = {};
   abstractifyKnocks(abstractKnock, knockTroughTimes);
 }
 
-// returns a list of lower bounds of knock distances by their timestamp
-void getKnockTroughs(int knock[100], int knockTroughTimes[10])
-{
-  for (int i = 0; i < 100; i++) {
+// smooth graph by applying Moving Average Algorithm
+void applyMovingAverage(int rawKnockDistances[100]){
+  for (int i = 0; i < 98; i++){                                                                     //       /\       //
+    int average = abs(rawKnockDistances[i] + rawKnockDistances[i+2])/2;                            //     \x/  \     /
+    rawKnockDistances[i+1] = average;                                                             //          X \   /  <= Applies average of two neighbouring
+  }                                                                                              //              \x/      points to smooth graph data.       
+  Serial.print("SMOOTHED: ");
+  print100Array(rawKnockDistances);
+}
 
+// returns a list of lower bounds of knock distances by their timestamp
+void getKnockTroughs(int rawKnockDistances[100], int rawKnockTimes[100], int knockTroughTimes[10])
+{
+  int knockCount = 0;
+  for (int i = 2; i <= 98; i++) {
+    int iMinus2 = rawKnockDistances[i-2];
+    int iMinus1 = rawKnockDistances[i-1];
+    int iBase = rawKnockDistances[i];
+    int iPlus1 = rawKnockDistances[i+1];
+    int iPlus2 = rawKnockDistances[i+2];
+
+    if((iMinus2 > iBase) && (iMinus2 > iMinus1) && (iMinus1 > iBase) && (iPlus1 > iBase) && (iPlus2 > iPlus1) && (iPlus2 > iBase)){
+
+      knockTroughTimes[knockCount] = rawKnockTimes[i];
+
+      knockCount++;
+    }
   }
 }
 
@@ -250,10 +280,10 @@ void abstractifyKnocks(float abstractKnock[10], int knockTroughTimes[10])
   //                                                          ^ 1 because the first knock is compared to by the rest
   abstractKnock[0] = 1;
   for (int i = 0; i < 10; i++) {
-    abstractKnock[i+1] = (knockTroughTimes[i+1] - knockTroughTimes[i]) / (knockTroughTimes[i] - knockTroughTimes[i-1]);
+    abstractKnock[i+1] = ((float)knockTroughTimes[i+1] - (float)knockTroughTimes[i]) / ((float)knockTroughTimes[i] - (float)knockTroughTimes[i-1]);
   }
-
-  //print10Array(abstractKnock);
+  Serial.print("ABSTRACT: ");
+  print10Array(abstractKnock);
   delay(100000);
 }
 
